@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"time"
 
 	"go.starlark.net/starlark"
+	"golang.org/x/image/bmp"
+	"golang.org/x/image/webp"
 	"tidbyt.dev/pixlet/encode"
 	"tidbyt.dev/pixlet/runtime"
 	"tidbyt.dev/pixlet/starlarkutil"
@@ -15,15 +17,16 @@ import (
 
 type AppletWrapper struct {
 	*runtime.Applet
+	appsPath string
 }
 
-func NewAppletWrapper() *AppletWrapper {
-	return &AppletWrapper{&runtime.Applet{}}
+func NewAppletWrapper(appsPath string) *AppletWrapper {
+	return &AppletWrapper{&runtime.Applet{}, appsPath}
 }
 
-func (wrapper *AppletWrapper) Render(deviceID string, appName string) (string, error) {
+func (wrapper *AppletWrapper) Render(deviceID string, appName string) ([]byte, error) {
 
-	appPath := fmt.Sprintf("/home/sdstolworthy/dev/tidbytcommunity/apps/%s/%[1]s.star", appName)
+	appPath := fmt.Sprintf("%s/%[2]s/%[2]s.star", wrapper.appsPath, appName)
 
 	fmt.Println("loading script")
 	wrapper.loadScript(appPath, appName, appName)
@@ -41,18 +44,24 @@ func (wrapper *AppletWrapper) Render(deviceID string, appName string) (string, e
 	roots, err := wrapper.Run(map[string]string{}, threadInitializer)
 
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
 
 	screens := encode.ScreensFromRoots(roots)
 
-	webp, err := screens.EncodeWebP(0)
+	encodedWebP, err := screens.EncodeWebP(0)
+
+	image, _ := webp.Decode(bytes.NewReader(encodedWebP))
+
+	writer := &bytes.Buffer{}
+
+	err = bmp.Encode(writer, image)
 
 	if err != nil {
-		return "", fmt.Errorf("error rendering")
+		return []byte{}, fmt.Errorf("error rendering")
 	}
 
-	return base64.StdEncoding.EncodeToString(webp), nil
+	return writer.Bytes(), nil
 }
 
 func (applet AppletWrapper) loadScript(filepath string, appID string, filename string) error {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +13,7 @@ type ImageRenderer interface {
 
 func main() {
 	r := gin.Default()
-	renderer := NewAppletWrapper()
+	renderer := NewAppletWrapper(os.Getenv("APPS_PATH"))
 
 	r.GET("/render/:deviceID/:appID", func(c *gin.Context) {
 		deviceID := c.Param("deviceID")
@@ -21,7 +22,7 @@ func main() {
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 		}
-		c.JSON(http.StatusOK, gin.H{"Path": f})
+		c.Data(http.StatusOK, "image/bmp", f)
 	})
 
 	r.GET("/ping", func(c *gin.Context) {

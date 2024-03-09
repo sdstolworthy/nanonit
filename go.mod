@@ -6,6 +6,7 @@ toolchain go1.22.1
 
 require (
 	github.com/gin-gonic/gin v1.9.1
+	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
 	tidbyt.dev/pixlet v0.29.1
 )
 
@@ -51,10 +52,9 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/zachomedia/go-bdf v0.0.0-20220611021443-a3af701111be // indirect
-	go.starlark.net v0.0.0-20231121155337-90ade8b19d09 // indirect
 	golang.org/x/arch v0.7.0 // indirect
 	golang.org/x/crypto v0.21.0 // indirect
-	golang.org/x/image v0.14.0 // indirect
+	golang.org/x/image v0.15.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

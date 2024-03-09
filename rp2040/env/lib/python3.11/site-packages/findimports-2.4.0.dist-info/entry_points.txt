@@ -1,0 +1,2 @@
+[console_scripts]
+findimports = findimports:main
