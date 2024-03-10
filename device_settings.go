@@ -48,7 +48,7 @@ func (deviceSettings *DeviceSettings) LoadDeviceSettings() error {
 	var appConfig firestoreAppConfig
 
 	if !doc.Exists() {
-		deviceSettings.appName = "metar"
+		deviceSettings.appName = "daynight"
 		deviceSettings.appConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
 		deviceSettings.SaveDeviceSettings()
 	} else {

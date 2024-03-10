@@ -26,7 +26,7 @@ func NewAppletWrapper(appsPath string) *AppletWrapper {
 
 func (wrapper *AppletWrapper) Render(appName string, config map[string]string) ([]byte, error) {
 
-  fmt.Println("Loading appName: ", appName)
+	fmt.Println("Loading appName: ", appName)
 	appPath := fmt.Sprintf("%s/%[2]s/%[2]s.star", wrapper.appsPath, appName)
 
 	wrapper.loadScript(appPath, appName, appName)

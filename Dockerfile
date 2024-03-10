@@ -11,9 +11,11 @@ RUN go mod download && go mod verify
 
 COPY . .
 
+COPY ./tidbytcommunity/apps ./tidbytcommunity/apps
 
 ENV GOOGLE_APPLICATION_CREDENTIALS=""
-EXPOSE 8080
+ENV PORT=8080
+EXPOSE ${PORT}
 ENV APPS_PATH="./tidbytcommunity/apps"
 
 RUN go build -v -o /app/app ./...
