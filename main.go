@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
 
 	firebase "firebase.google.com/go"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/api/option"
 )
 
 type ImageRenderer interface {
@@ -17,7 +19,9 @@ type ImageRenderer interface {
 func main() {
 	r := gin.Default()
 	renderer := NewAppletWrapper(os.Getenv("APPS_PATH"))
-	app, err := firebase.NewApp(context.Background(), nil)
+	sdk, _ := base64.StdEncoding.DecodeString(os.Getenv("FIREBASE_SDK"))
+	opt := option.WithCredentialsJSON(sdk)
+	app, err := firebase.NewApp(context.Background(), nil, opt)
 	client, err := app.Firestore(context.Background())
 	if err != nil {
 		panic(err)
