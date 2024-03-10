@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"os"
 
+	firebase "firebase.google.com/go"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,11 +17,24 @@ type ImageRenderer interface {
 func main() {
 	r := gin.Default()
 	renderer := NewAppletWrapper(os.Getenv("APPS_PATH"))
+	app, err := firebase.NewApp(context.Background(), nil)
+	client, err := app.Firestore(context.Background())
+	if err != nil {
+		panic(err)
+	}
 
-	r.GET("/render/:deviceID/:appID", func(c *gin.Context) {
+	r.GET("/render/:deviceID", func(c *gin.Context) {
 		deviceID := c.Param("deviceID")
-		appID := c.Param("appID")
-		f, err := renderer.Render(deviceID, appID)
+		deviceSettings := NewDeviceSettings(deviceID, *client)
+		deviceSettings.LoadDeviceSettings()
+		appID := "metar"
+
+		fmt.Println("Device settings: ", deviceSettings)
+		if deviceSettings.appName != "" {
+			appID = deviceSettings.appName
+		}
+
+		f, err := renderer.Render(appID, deviceSettings.appConfig)
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 		}

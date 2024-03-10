@@ -24,7 +24,7 @@ func NewAppletWrapper(appsPath string) *AppletWrapper {
 	return &AppletWrapper{&runtime.Applet{}, appsPath}
 }
 
-func (wrapper *AppletWrapper) Render(deviceID string, appName string) ([]byte, error) {
+func (wrapper *AppletWrapper) Render(appName string, config map[string]string) ([]byte, error) {
 
 	appPath := fmt.Sprintf("%s/%[2]s/%[2]s.star", wrapper.appsPath, appName)
 
@@ -41,7 +41,9 @@ func (wrapper *AppletWrapper) Render(deviceID string, appName string) ([]byte, e
 		return thread
 	}
 
-	roots, err := wrapper.Run(map[string]string{}, threadInitializer)
+	fmt.Println("Config", config)
+
+	roots, err := wrapper.Run(config, threadInitializer)
 
 	if err != nil {
 		return []byte{}, err
@@ -51,7 +53,7 @@ func (wrapper *AppletWrapper) Render(deviceID string, appName string) ([]byte, e
 
 	encodedWebP, err := screens.EncodeWebP(0)
 
-	image, _ := webp.Decode(bytes.NewReader(encodedWebP))
+	image, err := webp.Decode(bytes.NewReader(encodedWebP))
 
 	writer := &bytes.Buffer{}
 

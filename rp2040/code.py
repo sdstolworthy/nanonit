@@ -2,7 +2,6 @@ import time
 import io
 from os import getenv
 import ssl
-import binascii
 import socketpool
 import wifi
 from math import sin
@@ -13,6 +12,7 @@ import framebufferio
 import adafruit_imageload
 import adafruit_requests
 from adafruit_display_text.label import Label
+import microcontroller
 
 
 def initialize_wifi():
@@ -31,18 +31,25 @@ def initialize_wifi():
     print("Connected to", secrets["ssid"], "\nIP address:", wifi.radio.ipv4_address)
 
 
-def get_image():
+def get_image(device_id: str):
     print("getting image")
+    print("device id %s" % device_id)
     radio = wifi.radio
-
     pool = socketpool.SocketPool(radio)
     ssl_context = ssl.create_default_context()
     requests = adafruit_requests.Session(pool, ssl_context)
-    response = requests.get("http://10.0.0.37:8080/render/0/metar")
+    response = requests.get("http://10.0.0.37:8080/render/%s" % device_id)
     return io.BytesIO(response.content)
+
+def get_device_id():
+    cpuid = microcontroller.cpu.uid
+    device_id = "".join("{:02x}".format(x) for x in cpuid)
+    print(device_id)
+    return device_id
 
 
 def main():
+    device_id = get_device_id()
     initialize_wifi()
     displayio.release_displays()
     bit_depth_value = 4
@@ -51,7 +58,6 @@ def main():
     chain_width = 1
     chain_height = 1
     serpentine_value = True
-
     width_value = unit_width * chain_width
     height_value = unit_height * chain_height
     matrix = rgbmatrix.RGBMatrix(
@@ -81,21 +87,21 @@ def main():
     initialize_wifi()
 
     g = displayio.Group()
-    image = get_image()
-    b, p = adafruit_imageload.load(image)
-    t = displayio.TileGrid(b, pixel_shader=p)
-    g.append(t)
-
-    display.root_group = g
     while True:
         display.refresh(
             target_frames_per_second=target_fps, minimum_frames_per_second=0
         )
         now = time.monotonic_ns()
         if now > image_refresh_deadline:
-
-            get_image()
-            image_refresh_deadline += image_refresh_frequency
+            try:
+                image = get_image(device_id)
+                b, p = adafruit_imageload.load(image)
+                t = displayio.TileGrid(b, pixel_shader=p)
+                g.append(t)
+                display.root_group = g
+                image_refresh_deadline += image_refresh_frequency
+            except:
+                pass
         while True:
             now = time.monotonic_ns()
             if now > screen_refresh_deadline:
