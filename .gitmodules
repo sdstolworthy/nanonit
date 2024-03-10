@@ -1,0 +1,3 @@
+[submodule "tidbytcommunity"]
+	path = tidbytcommunity
+	url = https://github.com/sdstolworthy/tidbytcommunity

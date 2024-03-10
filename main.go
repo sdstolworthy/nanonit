@@ -19,7 +19,7 @@ type ImageRenderer interface {
 func main() {
 	r := gin.Default()
 	renderer := NewAppletWrapper(os.Getenv("APPS_PATH"))
-	sdk, _ := base64.StdEncoding.DecodeString(os.Getenv("FIREBASE_SDK"))
+	sdk, _ := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 	opt := option.WithCredentialsJSON(sdk)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	client, err := app.Firestore(context.Background())

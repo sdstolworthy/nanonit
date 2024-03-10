@@ -11,14 +11,12 @@ RUN go mod download && go mod verify
 
 COPY . .
 
+
+ENV GOOGLE_APPLICATION_CREDENTIALS=""
+EXPOSE 8080
+ENV APPS_PATH="./tidbytcommunity/apps"
+
 RUN go build -v -o /app/app ./...
 
-RUN git clone --depth 1 -b main https://github.com/tidbyt/community.git /community
-
-ARG GOOGLE_APPLICATION_CREDENTIALS
-
-ENV GOOGLE_APPLICATION_CREDENTIALS="/app/credentials.json"
-EXPOSE 8080
-ENV APPS_PATH="/community/apps"
 CMD ["/app/app"]
 
