@@ -27,33 +27,39 @@ func NewDeviceSettings(deviceID string, app firestore.Client) *DeviceSettings {
 	return &DeviceSettings{"", deviceID, map[string]string{}, app}
 }
 
+func (deviceSettings *DeviceSettings) SaveDeviceSettings() error {
+	_, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Set(context.Background(), map[string]interface{}{
+		"app":    deviceSettings.appName,
+		"config": deviceSettings.appConfig,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (deviceSettings *DeviceSettings) LoadDeviceSettings() error {
 
 	doc, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Get(context.Background())
-	if !doc.Exists() {
-		defaultAppConfig := firestoreAppConfig{"metar", map[string]string{"icao": "KJFK"}}
-		_, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Set(context.Background(), &defaultAppConfig, firestore.MergeAll)
-		if err != nil {
-			fmt.Println(err)
-			return err
-		}
-		deviceSettings.appName = "metar"
-		deviceSettings.appConfig = map[string]string{"icao": "KJFK"}
-		return nil
-	}
-	var appConfig firestoreAppConfig
-
-	fmt.Println("doc.Data(): ", doc.Data())
-
-	doc.DataTo(&appConfig)
-
-	fmt.Println("appConfig: ", appConfig)
-
-	deviceSettings.appName = appConfig.App
-	deviceSettings.appConfig = appConfig.Config
-
 	if err != nil {
 		return err
+	}
+
+	var appConfig firestoreAppConfig
+
+	if !doc.Exists() {
+		deviceSettings.appName = "metar"
+		deviceSettings.appConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
+		deviceSettings.SaveDeviceSettings()
+	} else {
+		fmt.Println("doc.Data(): ", doc.Data())
+
+		doc.DataTo(&appConfig)
+
+		fmt.Println("appConfig: ", appConfig)
+
+		deviceSettings.appName = appConfig.App
+		deviceSettings.appConfig = appConfig.Config
 	}
 	return nil
 }

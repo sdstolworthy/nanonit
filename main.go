@@ -27,14 +27,17 @@ func main() {
 		deviceID := c.Param("deviceID")
 		deviceSettings := NewDeviceSettings(deviceID, *client)
 		deviceSettings.LoadDeviceSettings()
-		appID := "metar"
 
 		fmt.Println("Device settings: ", deviceSettings)
-		if deviceSettings.appName != "" {
-			appID = deviceSettings.appName
+
+		if deviceSettings.appName == "" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": fmt.Sprintf("App not found %s", deviceSettings.appName),
+			})
+			return
 		}
 
-		f, err := renderer.Render(appID, deviceSettings.appConfig)
+		f, err := renderer.Render(deviceSettings.appName, deviceSettings.appConfig)
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 		}

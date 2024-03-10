@@ -26,9 +26,9 @@ func NewAppletWrapper(appsPath string) *AppletWrapper {
 
 func (wrapper *AppletWrapper) Render(appName string, config map[string]string) ([]byte, error) {
 
+  fmt.Println("Loading appName: ", appName)
 	appPath := fmt.Sprintf("%s/%[2]s/%[2]s.star", wrapper.appsPath, appName)
 
-	fmt.Println("loading script")
 	wrapper.loadScript(appPath, appName, appName)
 	timeout := 15000
 	threadInitializer := func(thread *starlark.Thread) *starlark.Thread {
@@ -40,8 +40,6 @@ func (wrapper *AppletWrapper) Render(appName string, config map[string]string) (
 		starlarkutil.AttachThreadContext(ctx, thread)
 		return thread
 	}
-
-	fmt.Println("Config", config)
 
 	roots, err := wrapper.Run(config, threadInitializer)
 
