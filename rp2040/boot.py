@@ -12,6 +12,6 @@ switch = digitalio.DigitalInOut(board.GP0)
 switch.direction = digitalio.Direction.INPUT
 switch.pull = digitalio.Pull.UP
 
-# If the switch pin is connected to ground CircuitPython can write to the drive
+# Grounding GP0 will allow CircuitPython to write to the filesystem
 storage.remount("/", readonly=switch.value)
 
