@@ -47,7 +47,7 @@ def get_session():
         _session = adafruit_requests.Session(pool, ssl_context)
     return _session
 
-def does_new_image_exist(device_id: str):
+def should_get_new_image(device_id: str):
     global _locked
     if _locked:
         return
@@ -61,6 +61,7 @@ def does_new_image_exist(device_id: str):
                 return False
     except Exception as e:
         print("error checking for new image: ", e)
+        return False
     finally:
         _locked = False
         gc.collect()
@@ -139,7 +140,7 @@ def main():
 
     while True:
         try:
-            if does_new_image_exist(device_id):
+            if should_get_new_image(device_id):
                 if len(g) > 0:
                     g.pop()
                 get_image(device_id)
