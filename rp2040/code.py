@@ -15,6 +15,11 @@ from adafruit_display_text.label import Label
 import microcontroller
 
 
+def get_endpoint(device_id: str):
+    base_url = getenv("base_url")
+    return "%s/render/%s" % (base_url, device_id)
+
+
 def initialize_wifi():
     secrets = {
         "ssid": getenv("CIRCUITPY_WIFI_SSID"),
@@ -38,8 +43,9 @@ def get_image(device_id: str):
     pool = socketpool.SocketPool(radio)
     ssl_context = ssl.create_default_context()
     requests = adafruit_requests.Session(pool, ssl_context)
-    response = requests.get("http://10.0.0.37:8080/render/%s" % device_id)
+    response = requests.get(get_endpoint(device_id))
     return io.BytesIO(response.content)
+
 
 def get_device_id():
     cpuid = microcontroller.cpu.uid
