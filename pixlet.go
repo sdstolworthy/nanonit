@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image/gif"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -49,17 +51,34 @@ func (wrapper *AppletWrapper) Render(appName string, config map[string]string) (
 
 	screens := encode.ScreensFromRoots(roots)
 
-	encodedWebP, err := screens.EncodeWebP(0)
-
-	image, err := webp.Decode(bytes.NewReader(encodedWebP))
-
-	writer := &bytes.Buffer{}
-
-	err = bmp.Encode(writer, image)
-
+	webpResult, err := screens.EncodeWebP(0)
+	os.WriteFile("output.webp", webpResult, 0644)
 	if err != nil {
 		return []byte{}, fmt.Errorf("error rendering")
 	}
+
+	// return a bitmap from the rendered webp
+
+	decoded, err := webp.Decode(bytes.NewReader(webpResult))
+
+	writer := new(bytes.Buffer)
+	err = bmp.Encode(writer, decoded)
+  fmt.Println(writer.Bytes())
+	if err != nil {
+		return []byte{}, fmt.Errorf("error encoding bmp")
+	}
+
+	// frames, err := gif.DecodeAll(bytes.NewReader(encodedGIF))
+
+	//	for i, frame := range frames.Image {
+	//		filename := fmt.Sprintf("frame-%d.bmp", i)
+	//		file, err := os.Create(filename)
+	//		if err != nil {
+	//			return []byte{}, fmt.Errorf("error creating file")
+	//		}
+	//		defer file.Close()
+	//    bmp.Encode(file, frame)
+	//	}
 
 	return writer.Bytes(), nil
 }

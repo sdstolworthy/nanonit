@@ -45,7 +45,7 @@ func main() {
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 		}
-		c.Data(http.StatusOK, "image/bmp", f)
+		c.Data(http.StatusOK, "application/octet-stream" , f)
 	})
 
 	r.GET("/ping", func(c *gin.Context) {

@@ -1,5 +1,7 @@
+from io import BytesIO
 from os import getenv
 import time
+import ssl
 import wifi
 import displayio
 import microcontroller
@@ -28,11 +30,8 @@ def get_image(device_id: str):
         pool = socketpool.SocketPool(radio)
         ssl_context = ssl.create_default_context()
         requests = adafruit_requests.Session(pool, ssl_context)
-        response = requests.get(get_endpoint(device_id)).iter_content(chunk_size=1024)
-        with open("image.gif", "wb") as f:
-            for chunk in response:
-                f.write(chunk)
-
+        response = requests.get(get_endpoint(device_id))
+        return BytesIO(response.content)
     except Exception as e:
         print("Error fetching image: ", e)
         return None
@@ -45,8 +44,6 @@ def get_device_id():
     return device_id
 
 
-#
-#
 def initialize_matrix():
     displayio.release_displays()
     bit_depth_value = 4
@@ -79,7 +76,9 @@ def run_display(matrix):
     display = framebufferio.FramebufferDisplay(matrix, auto_refresh=False)
     
     g = displayio.Group()
-    b, p = adafruit_imageload.load("metar.bmp")
+    bitmap = get_image(get_device_id())
+    b, p = adafruit_imageload.load(bitmap)
+    print("loaded image")
     t = displayio.TileGrid(b, pixel_shader=p)
     g.append(t)
 
@@ -119,12 +118,9 @@ def initialize_wifi():
 
 
 def main():
-    try:
-        matrix = initialize_matrix()
-        initialize_wifi()
-        run_display(matrix)
-    except Exception as e:
-        print("Error in main: ", e)
+    matrix = initialize_matrix()
+    initialize_wifi()
+    run_display(matrix)
 
 
 main()
