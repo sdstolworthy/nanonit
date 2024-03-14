@@ -10,6 +10,7 @@ import (
 	"go.starlark.net/starlark"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/webp"
+	"gopkg.in/yaml.v3"
 	"tidbyt.dev/pixlet/encode"
 	"tidbyt.dev/pixlet/runtime"
 	"tidbyt.dev/pixlet/starlarkutil"
@@ -24,9 +25,39 @@ func NewAppletWrapper(appsPath string) *AppletWrapper {
 	return &AppletWrapper{&runtime.Applet{}, appsPath}
 }
 
+type Manifest struct {
+	Filename    string `yaml:"fileName"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"desc"`
+	PackageName string `yaml:"packageName"`
+}
+
+func (manifest *Manifest) String() string {
+  return fmt.Sprintf("Manifest{Filename: %s, Name: %s, Description: %s, PackageName: %s}", manifest.Filename, manifest.Name, manifest.Description, manifest.PackageName)
+}
+
+func (wrapper *AppletWrapper) LoadManifest(appName string) (*Manifest, error) {
+	manifestPath := fmt.Sprintf("%s/%[2]s/manifest.yaml", wrapper.appsPath, appName)
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	manifestData := &Manifest{}
+
+	err = yaml.Unmarshal(manifest, manifestData)
+	if err != nil {
+		return nil, err
+	}
+	return manifestData, nil
+}
+
 func (wrapper *AppletWrapper) Render(appName string, config map[string]string) ([]byte, error) {
 	fmt.Println("Loading appName: ", appName)
-	appPath := fmt.Sprintf("%s/%[2]s/%[2]s.star", wrapper.appsPath, appName)
+	manifest, err := wrapper.LoadManifest(appName)
+	if err != nil {
+		return []byte{}, err
+	}
+	appPath := fmt.Sprintf("%s/%s/%s", wrapper.appsPath, appName, manifest.Filename)
 	wrapper.loadScript(appPath, appName, appName)
 	timeout := 15000
 	threadInitializer := func(thread *starlark.Thread) *starlark.Thread {

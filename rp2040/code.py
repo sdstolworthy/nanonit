@@ -14,6 +14,7 @@ import adafruit_requests
 from adafruit_display_text.label import Label
 import microcontroller
 
+_session = None
 _locked = False
 
 def get_endpoint(device_id: str):
@@ -36,7 +37,6 @@ def initialize_wifi():
             print("Something went wrong, retrying: ", e)
     print("Connected to", secrets["ssid"], "\nIP address:", wifi.radio.ipv4_address)
 
-_session = None
 
 def get_session():
     global _session
@@ -57,6 +57,7 @@ def does_new_image_exist(device_id: str):
         requests = get_session()
         with requests.head(get_endpoint(device_id)) as response:
             if response.status_code == 304:
+                print("no new image")
                 return False
     except Exception as e:
         print("error checking for new image: ", e)
@@ -78,7 +79,6 @@ def get_image(device_id: str):
                 f.write(response.content)
     except Exception as e:
         print("error getting image: ", e)
-        # raise e
     finally:
         _locked = False
         gc.collect()
@@ -87,7 +87,7 @@ def get_image(device_id: str):
 def get_device_id():
     cpuid = microcontroller.cpu.uid
     device_id = "".join("{:02x}".format(x) for x in cpuid)
-    print(device_id)
+    print("device id: %s" % device_id)
     return device_id
 
 def blanking_bitmap():
@@ -99,9 +99,7 @@ def blanking_bitmap():
             bitmap[i, j] = 0
     return bitmap, palette
 
-def main():
-    device_id = get_device_id()
-    initialize_wifi()
+def initialize_matrix():
     displayio.release_displays()
     bit_depth_value = 4
     unit_width = 64
@@ -111,7 +109,7 @@ def main():
     serpentine_value = True
     width_value = unit_width * chain_width
     height_value = unit_height * chain_height
-    matrix = rgbmatrix.RGBMatrix(
+    return rgbmatrix.RGBMatrix(
         width=width_value,
         height=height_value,
         bit_depth=bit_depth_value,
@@ -124,13 +122,21 @@ def main():
         serpentine=serpentine_value,
         doublebuffer=True,
     )
+
+def initialize_display(matrix):
     display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
-
-    initialize_wifi()
-
     g = displayio.Group()
     display.root_group = g
+    return display, g
+
+def main():
+    device_id = get_device_id()
+    initialize_wifi()
+    matrix = initialize_matrix()
+    _, g = initialize_display(matrix)
+
     attach_image_to_group(g)
+
     while True:
         try:
             if does_new_image_exist(device_id):
