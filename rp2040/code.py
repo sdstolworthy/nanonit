@@ -47,6 +47,23 @@ def get_session():
         _session = adafruit_requests.Session(pool, ssl_context)
     return _session
 
+def does_new_image_exist(device_id: str):
+    global _locked
+    if _locked:
+        return
+    _locked = True
+    try:
+        print("checking for new image")
+        requests = get_session()
+        with requests.head(get_endpoint(device_id)) as response:
+            if response.status_code == 304:
+                return False
+    except Exception as e:
+        print("error checking for new image: ", e)
+    finally:
+        _locked = False
+        gc.collect()
+    return True
 
 def get_image(device_id: str):
     global _locked
@@ -109,39 +126,26 @@ def main():
     )
     display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
 
-    target_fps = 30
-    refresh_frequency_in_minutes = 1 / target_fps
-    now = t0 = time.monotonic_ns()
-    screen_refresh_deadline = t0 + refresh_frequency_in_minutes
-    image_refresh_frequency = 5 * 1e9
-    image_refresh_deadline = t0 + image_refresh_frequency
-
-    p = 1
-
     initialize_wifi()
 
     g = displayio.Group()
     display.root_group = g
+    attach_image_to_group(g)
     while True:
-        now = time.monotonic_ns()
-        if now > image_refresh_deadline:
-            try:
-                print(len(g))
+        try:
+            if does_new_image_exist(device_id):
                 if len(g) > 0:
                     g.pop()
-                b, p = blanking_bitmap()
-                t = displayio.TileGrid(b, pixel_shader=p)
-                g.append(t)
                 get_image(device_id)
-                print("fetched image")
-                g.pop()
-                b, p = adafruit_imageload.load("image.bmp")
-                t = displayio.TileGrid(b, pixel_shader=p)
-                g.append(t)
-            except:
-                pass
-            finally:
-                time.sleep(10)
+                attach_image_to_group(g)
+        except:
+            pass
+        finally:
+            time.sleep(10)
 
+def attach_image_to_group(group):
+    b, p = adafruit_imageload.load("image.bmp")
+    t = displayio.TileGrid(b, pixel_shader=p)
+    group.append(t)
 
 main()
