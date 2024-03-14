@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"go.starlark.net/starlark"
-	"golang.org/x/image/bmp"
-	"golang.org/x/image/webp"
 	"gopkg.in/yaml.v3"
 	"tidbyt.dev/pixlet/encode"
 	"tidbyt.dev/pixlet/runtime"
@@ -33,7 +30,7 @@ type Manifest struct {
 }
 
 func (manifest *Manifest) String() string {
-  return fmt.Sprintf("Manifest{Filename: %s, Name: %s, Description: %s, PackageName: %s}", manifest.Filename, manifest.Name, manifest.Description, manifest.PackageName)
+	return fmt.Sprintf("Manifest{Filename: %s, Name: %s, Description: %s, PackageName: %s}", manifest.Filename, manifest.Name, manifest.Description, manifest.PackageName)
 }
 
 func (wrapper *AppletWrapper) LoadManifest(appName string) (*Manifest, error) {
@@ -78,19 +75,14 @@ func (wrapper *AppletWrapper) Render(appName string, config map[string]string) (
 
 	screens := encode.ScreensFromRoots(roots)
 
-	encodedWebP, err := screens.EncodeWebP(0)
-
-	image, err := webp.Decode(bytes.NewReader(encodedWebP))
-
-	writer := &bytes.Buffer{}
-
-	err = bmp.Encode(writer, image)
+  fmt.Println("Encoding GIF")
+	encodedGif, err := screens.EncodeGIF(0)
 
 	if err != nil {
 		return []byte{}, fmt.Errorf("error rendering")
 	}
 
-	return writer.Bytes(), nil
+	return encodedGif, nil
 }
 
 func (applet AppletWrapper) loadScript(filepath string, appID string, filename string) error {

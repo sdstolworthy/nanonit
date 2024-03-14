@@ -1,5 +1,6 @@
 import time
 import gc
+import gifio
 from os import getenv
 import ssl
 import socketpool
@@ -76,8 +77,9 @@ def get_image(device_id: str):
         print("getting image for device id: %s" % device_id)
         requests = get_session()
         with requests.get(get_endpoint(device_id)) as response:
-            with open("image.bmp", "wb") as f:
-                f.write(response.content)
+            with open("image.gif", "wb") as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
     except Exception as e:
         print("error getting image: ", e)
     finally:
@@ -136,23 +138,36 @@ def main():
     matrix = initialize_matrix()
     _, g = initialize_display(matrix)
 
-    attach_image_to_group(g)
+    next_frame = lambda: None
+    try:
+        next_frame = attach_image_to_group(g)
+    except Exception as e:
+        print(e)
+
+
+    IMAGE_REFRESH_INTERVAL = 12
+    image_refresh_counter = 0
 
     while True:
         try:
-            if should_get_new_image(device_id):
-                if len(g) > 0:
-                    g.pop()
-                get_image(device_id)
-                attach_image_to_group(g)
+            if image_refresh_counter >= IMAGE_REFRESH_INTERVAL:
+                image_refresh_counter = 0
+                if should_get_new_image(device_id):
+                    if len(g) > 0:
+                        g.pop()
+                    get_image(device_id)
+                    next_frame = attach_image_to_group(g)
+            else:
+                image_refresh_counter += 1
+            next_frame()
         except:
             pass
-        finally:
-            time.sleep(10)
+        time.sleep(1)
 
 def attach_image_to_group(group):
-    b, p = adafruit_imageload.load("image.bmp")
-    t = displayio.TileGrid(b, pixel_shader=p)
+    odg = gifio.OnDiskGif('/image.gif')
+    t = displayio.TileGrid(odg.bitmap, pixel_shader=displayio.ColorConverter())
     group.append(t)
+    return odg.next_frame
 
 main()

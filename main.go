@@ -83,7 +83,7 @@ func main() {
 
 	r.GET(DEVICE_IMAGE_PATH, imageRenderMiddleware, imageCacheMiddleware, func(c *gin.Context) {
 		image := c.MustGet("image").([]byte)
-		c.Data(http.StatusOK, "image/bmp", image)
+		c.Data(http.StatusOK, "image/gif", image)
 	})
 
 	r.HEAD(DEVICE_IMAGE_PATH, imageRenderMiddleware, imageCacheMiddleware)
