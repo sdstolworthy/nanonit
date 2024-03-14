@@ -138,36 +138,40 @@ def main():
     matrix = initialize_matrix()
     _, g = initialize_display(matrix)
 
-    next_frame = lambda: None
+    gif = None
     try:
-        next_frame = attach_image_to_group(g)
+        gif = attach_image_to_group(g)
     except Exception as e:
         print(e)
 
 
+    now = time.monotonic()
+    next_image_check = now
     IMAGE_REFRESH_INTERVAL = 12
-    image_refresh_counter = 0
+    next_frame_time = now
 
     while True:
-        try:
-            if image_refresh_counter >= IMAGE_REFRESH_INTERVAL:
-                image_refresh_counter = 0
+        now = time.monotonic()
+        if now >= next_image_check:
+            try:
                 if should_get_new_image(device_id):
                     if len(g) > 0:
                         g.pop()
                     get_image(device_id)
-                    next_frame = attach_image_to_group(g)
-            else:
-                image_refresh_counter += 1
-            next_frame()
-        except:
-            pass
-        time.sleep(1)
-
+                    gif = attach_image_to_group(g)
+            except Exception as e:
+                print(e)
+            next_image_check = time.monotonic() + IMAGE_REFRESH_INTERVAL
+        if now > next_frame_time and gif is not None:
+            delay = gif.next_frame()
+            if delay is None:
+                delay = 0.1
+            next_frame_time = now + delay
+        time.sleep(0.1)
 def attach_image_to_group(group):
     odg = gifio.OnDiskGif('/image.gif')
     t = displayio.TileGrid(odg.bitmap, pixel_shader=displayio.ColorConverter())
     group.append(t)
-    return odg.next_frame
+    return odg
 
 main()
