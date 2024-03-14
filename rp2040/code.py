@@ -1,5 +1,5 @@
 import time
-import io
+import gc
 from os import getenv
 import ssl
 import socketpool
@@ -14,6 +14,7 @@ import adafruit_requests
 from adafruit_display_text.label import Label
 import microcontroller
 
+_locked = False
 
 def get_endpoint(device_id: str):
     base_url = getenv("base_url")
@@ -35,16 +36,35 @@ def initialize_wifi():
             print("Something went wrong, retrying: ", e)
     print("Connected to", secrets["ssid"], "\nIP address:", wifi.radio.ipv4_address)
 
+_session = None
+
+def get_session():
+    global _session
+    if _session is None:
+        radio = wifi.radio
+        pool = socketpool.SocketPool(radio)
+        ssl_context = ssl.create_default_context()
+        _session = adafruit_requests.Session(pool, ssl_context)
+    return _session
+
 
 def get_image(device_id: str):
-    print("getting image")
-    print("device id %s" % device_id)
-    radio = wifi.radio
-    pool = socketpool.SocketPool(radio)
-    ssl_context = ssl.create_default_context()
-    requests = adafruit_requests.Session(pool, ssl_context)
-    response = requests.get(get_endpoint(device_id))
-    return io.BytesIO(response.content)
+    global _locked
+    if _locked:
+        return
+    _locked = True
+    try:
+        print("getting image for device id: %s" % device_id)
+        requests = get_session()
+        with requests.get(get_endpoint(device_id)) as response:
+            with open("image.bmp", "wb") as f:
+                f.write(response.content)
+    except Exception as e:
+        print("error getting image: ", e)
+        # raise e
+    finally:
+        _locked = False
+        gc.collect()
 
 
 def get_device_id():
@@ -53,6 +73,14 @@ def get_device_id():
     print(device_id)
     return device_id
 
+def blanking_bitmap():
+    palette = displayio.Palette(1)
+    palette[0] = 0x000000
+    bitmap = displayio.Bitmap(64, 64, 1)
+    for i in range(64):
+        for j in range(64):
+            bitmap[i, j] = 0
+    return bitmap, palette
 
 def main():
     device_id = get_device_id()
@@ -79,7 +107,7 @@ def main():
         serpentine=serpentine_value,
         doublebuffer=True,
     )
-    display = framebufferio.FramebufferDisplay(matrix, auto_refresh=False)
+    display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
 
     target_fps = 30
     refresh_frequency_in_minutes = 1 / target_fps
@@ -93,27 +121,27 @@ def main():
     initialize_wifi()
 
     g = displayio.Group()
+    display.root_group = g
     while True:
-        display.refresh(
-            target_frames_per_second=target_fps, minimum_frames_per_second=0
-        )
         now = time.monotonic_ns()
         if now > image_refresh_deadline:
             try:
-                image = get_image(device_id)
-                b, p = adafruit_imageload.load(image)
+                print(len(g))
+                if len(g) > 0:
+                    g.pop()
+                b, p = blanking_bitmap()
                 t = displayio.TileGrid(b, pixel_shader=p)
                 g.append(t)
-                display.root_group = g
-                image_refresh_deadline += image_refresh_frequency
+                get_image(device_id)
+                print("fetched image")
+                g.pop()
+                b, p = adafruit_imageload.load("image.bmp")
+                t = displayio.TileGrid(b, pixel_shader=p)
+                g.append(t)
             except:
                 pass
-        while True:
-            now = time.monotonic_ns()
-            if now > screen_refresh_deadline:
-                break
-            time.sleep((screen_refresh_deadline - now) * 1e-9)
-        screen_refresh_deadline += refresh_frequency_in_minutes
+            finally:
+                time.sleep(10)
 
 
 main()
