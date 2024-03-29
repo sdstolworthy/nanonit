@@ -10,7 +10,6 @@ import board
 import displayio
 import rgbmatrix
 import framebufferio
-import adafruit_imageload
 import adafruit_requests
 from adafruit_display_text.label import Label
 import microcontroller
@@ -45,6 +44,7 @@ def get_session():
         radio = wifi.radio
         pool = socketpool.SocketPool(radio)
         ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
         _session = adafruit_requests.Session(pool, ssl_context)
     return _session
 
@@ -96,17 +96,17 @@ def get_device_id():
 def blanking_bitmap():
     palette = displayio.Palette(1)
     palette[0] = 0x000000
-    bitmap = displayio.Bitmap(64, 64, 1)
+    bitmap = displayio.Bitmap(64, 32, 1)
     for i in range(64):
-        for j in range(64):
+        for j in range(32):
             bitmap[i, j] = 0
     return bitmap, palette
 
 def initialize_matrix():
     displayio.release_displays()
-    bit_depth_value = 4
+    bit_depth_value = 6
     unit_width = 64
-    unit_height = 64
+    unit_height = 32
     chain_width = 1
     chain_height = 1
     serpentine_value = True
@@ -117,7 +117,7 @@ def initialize_matrix():
         height=height_value,
         bit_depth=bit_depth_value,
         rgb_pins=[board.GP2, board.GP3, board.GP4, board.GP5, board.GP8, board.GP9],
-        addr_pins=[board.GP10, board.GP16, board.GP18, board.GP20, board.GP22],
+        addr_pins=[board.GP10, board.GP16, board.GP18, board.GP20],# board.GP22],
         clock_pin=board.GP11,
         latch_pin=board.GP12,
         output_enable_pin=board.GP13,
