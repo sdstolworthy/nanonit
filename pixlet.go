@@ -75,7 +75,7 @@ func (wrapper *AppletWrapper) Render(appName string, config map[string]string) (
 
 	screens := encode.ScreensFromRoots(roots)
 
-  fmt.Println("Encoding GIF")
+	fmt.Println("Encoding GIF")
 	encodedGif, err := screens.EncodeGIF(0)
 
 	if err != nil {

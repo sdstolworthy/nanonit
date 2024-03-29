@@ -42,24 +42,20 @@ func (deviceSettings *DeviceSettings) LoadDeviceSettings() error {
 
 	doc, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Get(context.Background())
 	if err != nil {
-		return err
+		deviceSettings.appName = "metar"
+		deviceSettings.appConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
+		deviceSettings.SaveDeviceSettings()
+		return nil
 	}
 
 	var appConfig firestoreAppConfig
 
-	if !doc.Exists() {
-		deviceSettings.appName = "daynight"
-		deviceSettings.appConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
-		deviceSettings.SaveDeviceSettings()
-	} else {
-		fmt.Println("doc.Data(): ", doc.Data())
+	fmt.Println("doc.Data(): ", doc.Data())
 
-		doc.DataTo(&appConfig)
+	doc.DataTo(&appConfig)
 
-		fmt.Println("appConfig: ", appConfig)
+	fmt.Println("appConfig: ", appConfig)
 
-		deviceSettings.appName = appConfig.App
-		deviceSettings.appConfig = appConfig.Config
-	}
+	deviceSettings.appName = appConfig.App
 	return nil
 }
