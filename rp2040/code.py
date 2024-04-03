@@ -1,5 +1,7 @@
 import time
 import gc
+import gifio
+import adafruit_imageload
 from os import getenv
 import ssl
 import socketpool
@@ -9,7 +11,6 @@ import board
 import displayio
 import rgbmatrix
 import framebufferio
-import adafruit_imageload
 import adafruit_requests
 from adafruit_display_text.label import Label
 import microcontroller
@@ -44,10 +45,11 @@ def get_session():
         radio = wifi.radio
         pool = socketpool.SocketPool(radio)
         ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
         _session = adafruit_requests.Session(pool, ssl_context)
     return _session
 
-def does_new_image_exist(device_id: str):
+def should_get_new_image(device_id: str):
     global _locked
     if _locked:
         return
@@ -61,6 +63,7 @@ def does_new_image_exist(device_id: str):
                 return False
     except Exception as e:
         print("error checking for new image: ", e)
+        return False
     finally:
         _locked = False
         gc.collect()
@@ -75,8 +78,9 @@ def get_image(device_id: str):
         print("getting image for device id: %s" % device_id)
         requests = get_session()
         with requests.get(get_endpoint(device_id)) as response:
-            with open("image.bmp", "wb") as f:
-                f.write(response.content)
+            with open("image.gif", "wb") as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
     except Exception as e:
         print("error getting image: ", e)
     finally:
@@ -93,35 +97,23 @@ def get_device_id():
 def blanking_bitmap():
     palette = displayio.Palette(1)
     palette[0] = 0x000000
-    bitmap = displayio.Bitmap(64, 64, 1)
+    bitmap = displayio.Bitmap(64, 32, 1)
     for i in range(64):
-        for j in range(64):
+        for j in range(32):
             bitmap[i, j] = 0
     return bitmap, palette
 
 def initialize_matrix():
     displayio.release_displays()
-    bit_depth_value = 4
-    unit_width = 64
-    unit_height = 64
-    chain_width = 1
-    chain_height = 1
-    serpentine_value = True
-    width_value = unit_width * chain_width
-    height_value = unit_height * chain_height
     return rgbmatrix.RGBMatrix(
-        width=width_value,
-        height=height_value,
-        bit_depth=bit_depth_value,
-        rgb_pins=[board.GP2, board.GP3, board.GP4, board.GP5, board.GP8, board.GP9],
-        addr_pins=[board.GP10, board.GP16, board.GP18, board.GP20, board.GP22],
-        clock_pin=board.GP11,
-        latch_pin=board.GP12,
-        output_enable_pin=board.GP13,
-        tile=chain_height,
-        serpentine=serpentine_value,
-        doublebuffer=True,
-    )
+
+      width=64, bit_depth=3,
+
+      rgb_pins=[board.GP0, board.GP1, board.GP2, board.GP3, board.GP5, board.GP4],
+
+      addr_pins=[board.GP6, board.GP7, board.GP8, board.GP9],
+
+      clock_pin=board.GP10, latch_pin=board.GP12, output_enable_pin=board.GP13)
 
 def initialize_display(matrix):
     display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
@@ -135,23 +127,83 @@ def main():
     matrix = initialize_matrix()
     _, g = initialize_display(matrix)
 
-    attach_image_to_group(g)
+    gif = None
+    try:
+        gif = attach_image_to_group(g)
+    except Exception as e:
+        print(e)
+
+
+    now = time.monotonic()
+    next_image_check = now
+    IMAGE_REFRESH_INTERVAL = 12
+    next_frame_time = now
 
     while True:
-        try:
-            if does_new_image_exist(device_id):
-                if len(g) > 0:
-                    g.pop()
-                get_image(device_id)
-                attach_image_to_group(g)
-        except:
-            pass
-        finally:
-            time.sleep(10)
+        now = time.monotonic()
+        if now >= next_image_check:
+            try:
+                if should_get_new_image(device_id):
+                    if len(g) > 0:
+                        g.pop()
+                    get_image(device_id)
+                    gif = attach_image_to_group(g)
+            except Exception as e:
+                print(e)
+            next_image_check = time.monotonic() + IMAGE_REFRESH_INTERVAL
+        if now > next_frame_time and gif is not None:
+            delay = gif.next_frame()
+            if delay is None:
+                delay = 0.1
+            next_frame_time = now + delay
+        time.sleep(0.1)
 
 def attach_image_to_group(group):
-    b, p = adafruit_imageload.load("image.bmp")
-    t = displayio.TileGrid(b, pixel_shader=p)
+    # bitmap, palette = adafruit_imageload.load("penguino.bmp",
+    #                                       bitmap=displayio.Bitmap,
+    #                                       palette=displayio.Palette)
+    # t = displayio.TileGrid(bitmap, pixel_shader = palette)
+    odg = gifio.OnDiskGif('image.gif')
+    t = displayio.TileGrid(odg.bitmap, pixel_shader=displayio.ColorConverter(input_colorspace=displayio.Colorspace.RGB565_SWAPPED))
     group.append(t)
+    return odg
 
 main()
+# SPDX-FileCopyrightText: 2019 Carter Nelson for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+
+
+# displayio.release_displays()
+# 
+# matrix = rgbmatrix.RGBMatrix(
+# 
+#   width=64, bit_depth=2,
+# 
+#   rgb_pins=[board.GP0, board.GP1, board.GP2, board.GP3, board.GP5, board.GP4],
+# 
+#   addr_pins=[board.GP6, board.GP7, board.GP8, board.GP9],
+# 
+#   clock_pin=board.GP10, latch_pin=board.GP12, output_enable_pin=board.GP13)
+# 
+# display = framebufferio.FramebufferDisplay(matrix)
+# bitmap, palette = adafruit_imageload.load("space.bmp",
+#                                           bitmap=displayio.Bitmap,
+#                                           palette=displayio.Palette)
+# 
+# # Create a TileGrid to hold the bitmap
+# tile_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+# 
+# # Create a Group to hold the TileGrid
+# group = displayio.Group()
+# 
+# # Add the TileGrid to the Group
+# group.append(tile_grid)
+# 
+# # Add the Group to the Display
+# display.root_group = group
+# 
+# # Loop forever so you can enjoy your image
+# while True:
+#     pass
+# 
