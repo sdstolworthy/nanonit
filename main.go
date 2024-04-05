@@ -36,11 +36,20 @@ func DeviceImageMiddleware(client *firestore.Client, renderer *AppletWrapper, ca
 			return
 		}
 
+		fmt.Println(deviceSettings)
 		f, err := renderer.Render(deviceSettings.appName, deviceSettings.appConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Error rendering image %s", err),
 			})
+			return
+		}
+		f, err = Darken(f)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Error rendering image %s", err),
+			})
+      panic(err)
 			return
 		}
 		c.Set("image", f)
