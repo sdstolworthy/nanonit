@@ -1,4 +1,4 @@
-FROM golang:1.22.1-bookworm as build
+FROM golang:1.22.1-bookworm
 
 RUN apt update && apt install -y libwebp-dev libwebpmux3 libwebp7
 
@@ -11,11 +11,14 @@ RUN go mod download && go mod verify
 
 COPY . .
 
+COPY ./tidbytcommunity/apps ./tidbytcommunity/apps
+
+ENV GOOGLE_APPLICATION_CREDENTIALS=""
+ENV PORT=8080
+EXPOSE ${PORT}
+ENV APPS_PATH="./tidbytcommunity/apps"
+
 RUN go build -v -o /app/app ./...
-
-RUN useradd -m heroku
-
-USER heroku
 
 CMD ["/app/app"]
 
