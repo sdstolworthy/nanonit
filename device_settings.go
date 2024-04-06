@@ -8,9 +8,21 @@ import (
 )
 
 type DeviceSettings struct {
-	appName   string
-	deviceID  string
-	appConfig map[string]string
+	AppName   string
+	DeviceID  string
+	AppConfig map[string]string
+}
+
+type DeviceSettingsGetter interface {
+	GetSettingsForDeviceByID(deviceID string) (*DeviceSettings, error)
+}
+type FakeDeviceSettings struct{}
+
+func (f *FakeDeviceSettings) GetSettingsForDeviceByID(deviceID string) (*DeviceSettings, error) {
+	return &DeviceSettings{AppName: "daynightmap", AppConfig: make(map[string]string)}, nil
+}
+
+type FirebaseDeviceSettings struct {
 	firestore firestore.Client
 }
 
@@ -19,18 +31,15 @@ type firestoreAppConfig struct {
 	Config map[string]string `firestore:"config"`
 }
 
-func (deviceSettings *DeviceSettings) String() string {
-	return fmt.Sprintf("DeviceSettings{appName: %s, deviceID: %s, appConfig: %v}", deviceSettings.appName, deviceSettings.deviceID, deviceSettings.appConfig)
+func NewDeviceSettings(app firestore.Client) *FirebaseDeviceSettings {
+	return &FirebaseDeviceSettings{firestore: app}
 }
 
-func NewDeviceSettings(deviceID string, app firestore.Client) *DeviceSettings {
-	return &DeviceSettings{"", deviceID, map[string]string{}, app}
-}
-
-func (deviceSettings *DeviceSettings) SaveDeviceSettings() error {
-	_, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Set(context.Background(), map[string]interface{}{
-		"app":    deviceSettings.appName,
-		"config": deviceSettings.appConfig,
+func (firebaseSettings *FirebaseDeviceSettings) SaveDeviceSettings(deviceID string, deviceSettings *DeviceSettings) error {
+	config := &firestoreAppConfig{App: deviceSettings.AppName, Config: deviceSettings.AppConfig}
+	_, err := firebaseSettings.firestore.Collection("devices").Doc(deviceID).Set(context.Background(), map[string]interface{}{
+		"app":    config.App,
+		"config": config.Config,
 	})
 	if err != nil {
 		return err
@@ -38,14 +47,17 @@ func (deviceSettings *DeviceSettings) SaveDeviceSettings() error {
 	return nil
 }
 
-func (deviceSettings *DeviceSettings) LoadDeviceSettings() error {
-
-	doc, err := deviceSettings.firestore.Collection("devices").Doc(deviceSettings.deviceID).Get(context.Background())
+func (firebaseSettings *FirebaseDeviceSettings) GetSettingsForDeviceByID(deviceID string) (*DeviceSettings, error) {
+	doc, err := firebaseSettings.firestore.Collection("devices").Doc(deviceID).Get(context.Background())
 	if err != nil {
-		deviceSettings.appName = "metar"
-		deviceSettings.appConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
-		deviceSettings.SaveDeviceSettings()
-		return nil
+		return nil, err
+	}
+	var settings DeviceSettings
+	if err != nil {
+		settings.AppName = "metar"
+		settings.AppConfig = map[string]string{"icao": "KPDX,KSLC,KBNA"}
+		firebaseSettings.SaveDeviceSettings(deviceID, &settings)
+		return &settings, nil
 	}
 
 	var appConfig firestoreAppConfig
@@ -56,6 +68,7 @@ func (deviceSettings *DeviceSettings) LoadDeviceSettings() error {
 
 	fmt.Println("appConfig: ", appConfig)
 
-	deviceSettings.appName = appConfig.App
-	return nil
+	settings.AppName = appConfig.App
+	settings.AppConfig = appConfig.Config
+	return &settings, nil
 }

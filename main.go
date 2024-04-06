@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"crypto/md5"
-	"encoding/base64"
 	"encoding/hex"
-	"fmt"
-	"net/http"
-	"os"
-
-	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/sdstolworthy/nanonit/gif_manipulator"
 	"google.golang.org/api/option"
+	"net/http"
 )
 
 type ImageRenderer interface {
@@ -21,35 +18,33 @@ type ImageRenderer interface {
 
 const DEVICE_IMAGE_PATH = "/render/:deviceID"
 
-func DeviceImageMiddleware(client *firestore.Client, renderer *AppletWrapper, cache map[string]string) gin.HandlerFunc {
+func DeviceImageMiddleware(deviceSettingsGetter DeviceSettingsGetter, renderer *AppletWrapper, cache map[string]string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("deviceID")
-		deviceSettings := NewDeviceSettings(deviceID, *client)
-		deviceSettings.LoadDeviceSettings()
+		deviceSettings, err := deviceSettingsGetter.GetSettingsForDeviceByID(deviceID)
 
 		fmt.Println("Device settings: ", deviceSettings)
 
-		if deviceSettings.appName == "" {
+		if deviceSettings.AppName == "" {
 			c.JSON(http.StatusNotFound, gin.H{
-				"error": fmt.Sprintf("App not found %s", deviceSettings.appName),
+				"error": fmt.Sprintf("App not found %s", deviceSettings.AppName),
 			})
 			return
 		}
 
 		fmt.Println(deviceSettings)
-		f, err := renderer.Render(deviceSettings.appName, deviceSettings.appConfig)
+		f, err := renderer.Render(deviceSettings.AppName, deviceSettings.AppConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Error rendering image %s", err),
 			})
 			return
 		}
-		f, err = Darken(f)
+		f, err = gif_manipulator.Darken(f)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Error rendering image %s", err),
 			})
-      panic(err)
 			return
 		}
 		c.Set("image", f)
@@ -77,17 +72,32 @@ func ImageCachingMiddleware(cache map[string]string) gin.HandlerFunc {
 
 func main() {
 	r := gin.Default()
-	renderer := NewAppletWrapper(os.Getenv("APPS_PATH"))
-	sdk, _ := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-	opt := option.WithCredentialsJSON(sdk)
-	app, err := firebase.NewApp(context.Background(), nil, opt)
-	client, err := app.Firestore(context.Background())
+	config, err := GetConfig()
 	if err != nil {
 		panic(err)
 	}
+	renderer := NewAppletWrapper(config.AppsPath)
 	imageHashes := make(map[string]string)
 
-	imageRenderMiddleware := DeviceImageMiddleware(client, renderer, imageHashes)
+	var settings DeviceSettingsGetter
+
+	credentials, err := config.GetGoogleApplicationCredentials()
+	fmt.Println("hello,credentials")
+	fmt.Println("Credentials ", len(credentials))
+
+	if len(credentials) > 0 {
+		opt := option.WithCredentialsJSON(credentials)
+		app, err := firebase.NewApp(context.Background(), nil, opt)
+		client, err := app.Firestore(context.Background())
+		if err != nil {
+			panic(err)
+		}
+		settings = NewDeviceSettings(*client)
+	} else {
+		settings = &FakeDeviceSettings{}
+	}
+
+	imageRenderMiddleware := DeviceImageMiddleware(settings, renderer, imageHashes)
 	imageCacheMiddleware := ImageCachingMiddleware(imageHashes)
 
 	r.GET(DEVICE_IMAGE_PATH, imageRenderMiddleware, imageCacheMiddleware, func(c *gin.Context) {
