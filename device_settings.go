@@ -16,10 +16,13 @@ type DeviceSettings struct {
 type DeviceSettingsGetter interface {
 	GetSettingsForDeviceByID(deviceID string) (*DeviceSettings, error)
 }
-type FakeDeviceSettings struct{}
+type FakeDeviceSettings struct {
+	AppName string
+	Config  map[string]string
+}
 
 func (f *FakeDeviceSettings) GetSettingsForDeviceByID(deviceID string) (*DeviceSettings, error) {
-	return &DeviceSettings{AppName: "daynightmap", AppConfig: make(map[string]string)}, nil
+	return &DeviceSettings{AppName: f.AppName, AppConfig: f.Config}, nil
 }
 
 type FirebaseDeviceSettings struct {

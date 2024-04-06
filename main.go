@@ -4,19 +4,22 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	firebase "firebase.google.com/go"
 	"fmt"
+	"net/http"
+	"strconv"
+
+	firebase "firebase.google.com/go"
 	"github.com/gin-gonic/gin"
 	"github.com/sdstolworthy/nanonit/gif_manipulator"
 	"google.golang.org/api/option"
-	"net/http"
 )
 
 type ImageRenderer interface {
 	Render(deviceID string, appName string) string
 }
 
-const DEVICE_IMAGE_PATH = "/render/:deviceID"
+const deviceImagePath = "/render/:deviceID"
+const imageContext = "image"
 
 func DeviceImageMiddleware(deviceSettingsGetter DeviceSettingsGetter, renderer *AppletWrapper, cache map[string]string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -32,7 +35,6 @@ func DeviceImageMiddleware(deviceSettingsGetter DeviceSettingsGetter, renderer *
 			return
 		}
 
-		fmt.Println(deviceSettings)
 		f, err := renderer.Render(deviceSettings.AppName, deviceSettings.AppConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -40,28 +42,52 @@ func DeviceImageMiddleware(deviceSettingsGetter DeviceSettingsGetter, renderer *
 			})
 			return
 		}
-		f, err = gif_manipulator.Darken(f)
+		c.Set(imageContext, f)
+	}
+}
+
+func ImageManipulationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		image := c.MustGet(imageContext).([]byte)
+		gif, err := gif_manipulator.FromBytes(image)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Error rendering image %s", err),
+				"error": "Failed to load image",
 			})
-			return
 		}
-		c.Set("image", f)
+		rawShade := c.Query("shade")
+		if rawShade != "" {
+			shade, err := strconv.ParseFloat(rawShade, 64)
+			if err != nil {
+				fmt.Println(fmt.Sprintf("Failed to convert shade: %s", rawShade))
+			} else {
+				fmt.Println(fmt.Sprintf("Applying shade: %v", shade))
+				gif.Darken(shade)
+			}
+		} else {
+			fmt.Println("Did not get shade param")
+		}
+		imgBytes, err := gif.ToBytes()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to manipulate image",
+			})
+		}
+
+		c.Set(imageContext, imgBytes)
 	}
 }
 
 func ImageCachingMiddleware(cache map[string]string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("deviceID")
-		image := c.MustGet("image").([]byte)
+		image := c.MustGet(imageContext).([]byte)
 		md5 := md5.New()
 		md5.Write(image)
 		hash := hex.EncodeToString(md5.Sum(nil))
 		fmt.Println("Hash: ", hash)
 		fmt.Println("Cache: ", cache[deviceID])
 		if hash == cache[deviceID] {
-			fmt.Println(c.Writer.Status())
 			c.Status(http.StatusNotModified)
 			return
 		}
@@ -94,18 +120,19 @@ func main() {
 		}
 		settings = NewDeviceSettings(*client)
 	} else {
-		settings = &FakeDeviceSettings{}
+		settings = &FakeDeviceSettings{AppName: "detailedmetar", Config: map[string]string{"airports": "KPDX", "icao": "KPDX"}}
 	}
 
 	imageRenderMiddleware := DeviceImageMiddleware(settings, renderer, imageHashes)
 	imageCacheMiddleware := ImageCachingMiddleware(imageHashes)
+	imageManipulationMiddleware := ImageManipulationMiddleware()
 
-	r.GET(DEVICE_IMAGE_PATH, imageRenderMiddleware, imageCacheMiddleware, func(c *gin.Context) {
-		image := c.MustGet("image").([]byte)
+	r.GET(deviceImagePath, imageRenderMiddleware, imageManipulationMiddleware, imageCacheMiddleware, func(c *gin.Context) {
+		image := c.MustGet(imageContext).([]byte)
 		c.Data(http.StatusOK, "image/gif", image)
 	})
 
-	r.HEAD(DEVICE_IMAGE_PATH, imageRenderMiddleware, imageCacheMiddleware)
+	r.HEAD(deviceImagePath, imageRenderMiddleware, imageCacheMiddleware)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

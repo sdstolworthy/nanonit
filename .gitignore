@@ -1,4 +1,4 @@
 tmp/
 rp2040/env
-img2.gif output.gif test.gif
+*.gif
 *.bmp
